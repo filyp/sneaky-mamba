@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] check that in AutoTokenizer.from_pretrained('EleutherAI/gpt-neox-20b') my task is still 1+2*num_steps tokens
+- [X] check that in AutoTokenizer.from_pretrained('EleutherAI/gpt-neox-20b') my task is still 1+2*num_steps tokens
 
 
 # Resources
