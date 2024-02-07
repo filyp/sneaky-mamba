@@ -3,88 +3,94 @@ import random
 
 import torch
 
+# not having subtraction, makes % the only way to go down, forcing more of it
 possible_steps = (
-    ("+1", lambda x: x + 1),
-    ("+2", lambda x: x + 2),
-    ("+3", lambda x: x + 3),
-    ("+4", lambda x: x + 4),
-    # not having subtraction, makes % the only way to go down, forcing more of it
-    # ("-1", lambda x: x - 1),
-    # ("-2", lambda x: x - 2),
-    # ("-3", lambda x: x - 3),
-    # ("-4", lambda x: x - 4),
-    ("*2", lambda x: x * 2),
-    ("*3", lambda x: x * 3),
-    ("%2", lambda x: x % 2),
-    ("%5", lambda x: x % 5),
+    ("one", lambda x: x + 1),
+    ("two", lambda x: x + 2),
+    ("three", lambda x: x + 3),
+    ("four", lambda x: x + 4),
+    ("double", lambda x: x * 2),
+    ("triple", lambda x: x * 3),
+    ("even", lambda x: x % 2),
+    ("palm", lambda x: x % 5),
 )
 
 
-def generate_task(num_of_steps, highest_allowed_value=9):
+def _generate_task_abstract(num_of_steps, highest_allowed_value):
     """Generates a sequential computation task of given length.
-
-    Resulting task looks like this:
-    1 *3 %2 %5 *3 %5 +1 *2 +1 %2 +3
-    The reasoning:
-    1 *3 3 %2 1 %5 1 *3 3 %5 3 +1 4 *2 8 +1 9 %2 1 +3 4
-
-    They are given as lists.
 
     Intemediate values will stay in the range:
     1 - highest_allowed_value
 
+    We start the task from the value of 1.
+
     Returns:
-    str: text of the task
-    str: reasoning text
+    list of operations f.e. ["two", "double", "one", "even", "triple"]
+    list of intermediate values; for the example above it's: [1, 3, 6, 7, 1, 3]
     """
-    task_texts = ["1"]
-    reasoning_texts = ["1"]
-    value = 1
+    operations = []
+    intermediate_values = [1]
+
+    assert highest_allowed_value < 360, "higher values may be multiple tokens"
+    assert num_of_steps >= 1
 
     for _ in range(num_of_steps):
         # randomly choose a step that satisfies the conditions
         while True:
             operation_text, func = random.choice(possible_steps)
-            new_value = func(value)
+            new_value = func(intermediate_values[-1])
             if 1 <= new_value <= highest_allowed_value:
                 break
 
-        # update the task and reasoning texts
-        value = new_value
-        task_texts.append(operation_text)
-        reasoning_texts.append(operation_text)
-        reasoning_texts.append(str(value))
+        # update the task and values
+        intermediate_values.append(new_value)
+        operations.append(operation_text)
 
-    return task_texts, reasoning_texts
+    return operations, intermediate_values
 
 
-def mask_all_values(reasoning):
-    reasoning[2:-2:2] = "0" * len(reasoning[2:-2:2])
-    return reasoning
+def generate_task_text(masked, num_of_steps, highest_allowed_value=9):
+    ops, vals = _generate_task_abstract(num_of_steps, highest_allowed_value)
+
+    if masked:
+        # mask intermediate values
+        for i in range(1, len(vals) - 1):
+            vals[i] = "_"
+
+    # generate interleaved reasoning of the form:
+    # [1, 'three', 4, 'two', 6, 'two', 8, 'one', 9, 'even', 1]
+    reasoning = []
+    for i in range(len(ops)):
+        reasoning.append(vals[i])
+        reasoning.append(ops[i])
+    reasoning.append(vals[-1])
+
+    # construct task and reasoning texts
+    task_text = "hide " if masked else "show "
+    task_text += " ".join(ops) + "\n"
+    reasoning_text = " ".join(str(r) for r in reasoning)
+    return task_text, reasoning_text
 
 
 class TasksDataset(torch.utils.data.Dataset):
-    def __init__(self, tokenizer, mask, num_examples_per_num_steps):
+    def __init__(self, tokenizer, num_examples_per_num_steps):
         """
         num_examples_per_num_steps: list of tuples (num_steps, num_examples)
         """
         training_texts = []
         self.task_ids = []
         self.reasoning_ids = []
-        for num_steps, num_examples in num_examples_per_num_steps:
-            for _ in range(num_examples):
-                task, reasoning = generate_task(num_steps)
-                if mask:
-                    reasoning = mask_all_values(reasoning)
+        for masked in [False, True]:
+            for num_steps, num_examples in num_examples_per_num_steps:
+                for _ in range(num_examples):
+                    task, reasoning = generate_task_text(masked, num_steps)
 
-                task_text = " ".join(task) + "\nanswer\n"
-                reasoning_text = " ".join(reasoning)
-                task_ids = tokenizer.encode(task_text, return_tensors="pt")[0]
-                reasoning_ids = tokenizer.encode(reasoning_text, return_tensors="pt")[0]
-                self.task_ids.append(task_ids)
-                self.reasoning_ids.append(reasoning_ids)
-                # training texts will be batch tokenized later, to have padding
-                training_texts.append(task_text + reasoning_text)
+                    self.task_ids.append(tokenizer.encode(task, return_tensors="pt")[0])
+                    self.reasoning_ids.append(
+                        tokenizer.encode(reasoning, return_tensors="pt")[0]
+                    )
+                    # training texts will be batch tokenized later, to have padding
+                    training_texts.append(task + reasoning)
 
         tokens = tokenizer(training_texts, padding=True, return_tensors="pt")
         self.input_ids = tokens.input_ids
@@ -113,9 +119,10 @@ class TasksDataset(torch.utils.data.Dataset):
 
 def test_tokenization(tokenizer):
     # make sure that the task is tokenized in a regular minimal way
-    num_steps = 13
-    task, reasoning = generate_task(num_steps)
-    assert len(tokenizer.encode(" ".join(task))) == num_steps * 2 + 1
-    assert len(tokenizer.encode(" ".join(reasoning))) == num_steps * 3 + 1
-    reasoning = mask_all_values(reasoning)
-    assert len(tokenizer.encode(" ".join(reasoning))) == num_steps * 3 + 1
+    num_steps = 99
+    task, reasoning = generate_task_text(True, num_steps)
+    assert len(tokenizer.encode(task)) == num_steps + 2
+    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 1
+    task, reasoning = generate_task_text(False, num_steps)
+    assert len(tokenizer.encode(task)) == num_steps + 2
+    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 1
