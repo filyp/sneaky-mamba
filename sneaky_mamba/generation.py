@@ -3,20 +3,24 @@ import random
 
 import torch
 
-# not having subtraction, makes % the only way to go down, forcing more of it
+# # not having subtraction, makes % the only way to go down, forcing more of it
+# possible_steps = (
+#     ("one", lambda x: x + 1),
+#     ("two", lambda x: x + 2),
+#     ("three", lambda x: x + 3),
+#     ("four", lambda x: x + 4),
+#     ("double", lambda x: x * 2),
+#     ("triple", lambda x: x * 3),
+#     ("even", lambda x: x % 2),
+#     ("palm", lambda x: x % 5),
+# )
 possible_steps = (
-    ("one", lambda x: x + 1),
-    ("two", lambda x: x + 2),
-    ("three", lambda x: x + 3),
-    ("four", lambda x: x + 4),
-    ("double", lambda x: x * 2),
-    ("triple", lambda x: x * 3),
-    ("even", lambda x: x % 2),
-    ("palm", lambda x: x % 5),
+        ("two", lambda x: (x + 2) % 7),
+        ("triple", lambda x: (x * 2) % 7),
 )
 
 
-def _generate_task_abstract(num_of_steps, highest_allowed_value):
+def _generate_task_abstract(num_of_steps):
     """Generates a sequential computation task of given length.
 
     Intemediate values will stay in the range:
@@ -31,16 +35,12 @@ def _generate_task_abstract(num_of_steps, highest_allowed_value):
     operations = []
     intermediate_values = [1]
 
-    assert highest_allowed_value < 360, "higher values may be multiple tokens"
     assert num_of_steps >= 1
 
     for _ in range(num_of_steps):
         # randomly choose a step that satisfies the conditions
-        while True:
-            operation_text, func = random.choice(possible_steps)
-            new_value = func(intermediate_values[-1])
-            if 1 <= new_value <= highest_allowed_value:
-                break
+        operation_text, func = random.choice(possible_steps)
+        new_value = func(intermediate_values[-1])
 
         # update the task and values
         intermediate_values.append(new_value)
@@ -49,8 +49,8 @@ def _generate_task_abstract(num_of_steps, highest_allowed_value):
     return operations, intermediate_values
 
 
-def generate_task_text(masked, num_of_steps, highest_allowed_value=9):
-    ops, vals = _generate_task_abstract(num_of_steps, highest_allowed_value)
+def generate_task_text(masked, num_of_steps):
+    ops, vals = _generate_task_abstract(num_of_steps)
 
     if masked:
         # mask intermediate values
