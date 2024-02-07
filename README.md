@@ -1,6 +1,9 @@
 # TODO
 
 - [ ] place higher loss on the last token (the final answer) to maybe speedup training
+- [ ] smaller mamba (less layers) to train faster
+- [ ] train transformer (at least try to)
+- [ ] test whether the tasks are actually fully sequential or there are heuristics for solving them
 - [ ] parallelize accuracy eval (first, it's good to have task dataset in dataset creation) (but padding is problematic)
   - this takes about 1/4 of training time currently with epoch size 160, probably less with 320
 - [X] check that in AutoTokenizer.from_pretrained('EleutherAI/gpt-neox-20b') my task is still 1+2*num_steps tokens
@@ -16,6 +19,10 @@
 
 ```bash
 /bin/sh -c "cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt && tail -f /dev/null"
+```
+
+```
+cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt
 ```
 
 old loss:
