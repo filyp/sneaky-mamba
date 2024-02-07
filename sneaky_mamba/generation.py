@@ -3,7 +3,6 @@ import random
 
 import torch
 
-
 possible_steps = (
     ("+1", lambda x: x + 1),
     ("+2", lambda x: x + 2),
@@ -87,9 +86,9 @@ class TasksDataset(torch.utils.data.Dataset):
                 # training texts will be batch tokenized later, to have padding
                 training_texts.append(task_text + reasoning_text)
 
-        self.input_ids = tokenizer(
-            training_texts, padding=True, return_tensors="pt"
-        ).input_ids
+        tokens = tokenizer(training_texts, padding=True, return_tensors="pt")
+        self.input_ids = tokens.input_ids
+        self.attention_masks = tokens.attention_mask
 
         # test that each has the same num of examples
         assert len(self.input_ids) == len(self.task_ids) == len(self.reasoning_ids)
@@ -106,6 +105,17 @@ class TasksDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         return dict(
             input_ids=self.input_ids[i],  # task and reasoning, joined and padded
+            attention_mask=self.attention_masks[i],
             task_ids=self.task_ids[i],
             reasoning_ids=self.reasoning_ids[i],
         )
+
+
+def test_tokenization(tokenizer):
+    # make sure that the task is tokenized in a regular minimal way
+    num_steps = 13
+    task, reasoning = generate_task(num_steps)
+    assert len(tokenizer.encode(" ".join(task))) == num_steps * 2 + 1
+    assert len(tokenizer.encode(" ".join(reasoning))) == num_steps * 3 + 1
+    reasoning = mask_all_values(reasoning)
+    assert len(tokenizer.encode(" ".join(reasoning))) == num_steps * 3 + 1
