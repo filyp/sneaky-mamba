@@ -16,7 +16,7 @@ import torch
 # )
 possible_steps = (
         ("two", lambda x: (x + 2) % 7),
-        ("triple", lambda x: (x * 2) % 7),
+        ("triple", lambda x: (x * 3) % 7),
 )
 
 
