@@ -6,6 +6,10 @@
 - [ ] test whether the tasks are actually fully sequential or there are heuristics for solving them
 - [X] check that in AutoTokenizer.from_pretrained('EleutherAI/gpt-neox-20b') my task is still 1+2*num_steps tokens
 
+# Info
+
+Mamba trained: 130m stripped to 6 layers, so about 30m.
+
 # Resources
 
 - for interventions into mamba architecture, this will be easiest [mamba-minimal](https://github.com/johnma2006/mamba-minimal)
