@@ -17,12 +17,16 @@ Mamba trained: 130m stripped to 6 layers, so about 30m.
 
 # Useful snippets
 
-```bash
-/bin/sh -c "cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt && tail -f /dev/null"
+```
+cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt
 ```
 
 ```
-cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt
+nohup sneaky_mamba/mamba_direct_train.py EXP_NAME > LOG_NAME.log 2>&1 &
+```
+
+```bash
+/bin/sh -c "cd /workspace && git clone https://github.com/filyp/sneaky-mamba.git && cd sneaky-mamba && pip install -r requirements.txt && tail -f /dev/null"
 ```
 
 old loss:

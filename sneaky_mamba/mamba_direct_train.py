@@ -1,5 +1,6 @@
 # %%
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -21,7 +22,7 @@ tokenizer.pad_token = tokenizer.eos_token
 test_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name="mamba_direct_train")
+wandb.init(project="sneaky-mamba", name="mamba_direct_train_" + sys.argv[1])
 
 # %%
 # use only the first few layers out of 24
