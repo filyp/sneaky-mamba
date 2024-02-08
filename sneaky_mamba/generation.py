@@ -3,24 +3,13 @@ import random
 
 import torch
 
-# # not having subtraction, makes % the only way to go down, forcing more of it
-# possible_steps = (
-#     ("one", lambda x: x + 1),
-#     ("two", lambda x: x + 2),
-#     ("three", lambda x: x + 3),
-#     ("four", lambda x: x + 4),
-#     ("double", lambda x: x * 2),
-#     ("triple", lambda x: x * 3),
-#     ("even", lambda x: x % 2),
-#     ("palm", lambda x: x % 5),
-# )
 possible_steps = (
-        ("two", lambda x: (x + 2) % 7),
-        ("triple", lambda x: (x * 3) % 7),
+    ("two", lambda x: (x + 2) % 7),
+    ("triple", lambda x: (x * 3) % 7),
 )
 
 
-def _generate_task_abstract(num_of_steps):
+def generate_task_abstract(num_of_steps):
     """Generates a sequential computation task of given length.
 
     Intemediate values will stay in the range:
@@ -29,8 +18,8 @@ def _generate_task_abstract(num_of_steps):
     We start the task from the value of 1.
 
     Returns:
-    list of operations f.e. ["two", "double", "one", "even", "triple"]
-    list of intermediate values; for the example above it's: [1, 3, 6, 7, 1, 3]
+    list of operations f.e. ["two", "triple", "two", "two", "triple"]
+    list of intermediate values; for the example above it's: [1, 3, 2, 4, 6, 4]
     """
     operations = []
     intermediate_values = [1]
@@ -50,7 +39,7 @@ def _generate_task_abstract(num_of_steps):
 
 
 def generate_task_text(masked, num_of_steps):
-    ops, vals = _generate_task_abstract(num_of_steps)
+    ops, vals = generate_task_abstract(num_of_steps)
 
     if masked:
         # mask intermediate values
@@ -58,7 +47,7 @@ def generate_task_text(masked, num_of_steps):
             vals[i] = "_"
 
     # generate interleaved reasoning of the form:
-    # [1, 'three', 4, 'two', 6, 'two', 8, 'one', 9, 'even', 1]
+    # [1, 'two', 3, 'two', 5, 'triple', 1, 'triple', 3, 'triple', 2]
     reasoning = []
     for i in range(len(ops)):
         reasoning.append(vals[i])
@@ -70,6 +59,37 @@ def generate_task_text(masked, num_of_steps):
     task_text += " ".join(ops) + "\n"
     reasoning_text = " ".join(str(r) for r in reasoning)
     return task_text, reasoning_text
+
+
+class DirectTasksDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, num_examples_per_num_steps):
+        """
+        num_examples_per_num_steps: list of tuples (num_steps, num_examples)
+        """
+        inputs = []
+        labels = []
+        for num_steps, num_examples in num_examples_per_num_steps:
+            for _ in range(num_examples):
+                ops, vals = generate_task_abstract(num_steps)
+                ops.insert(0, "show")
+                assert len(ops) == len(vals)
+                inputs.append(" ".join(ops))
+                labels.append(" ".join(str(v) for v in vals))
+
+        tokens = tokenizer(inputs, padding=True, return_tensors="pt")
+        self.input_ids = tokens.input_ids
+        self.attention_masks = tokens.attention_mask
+        self.labels = tokenizer(labels, padding=True, return_tensors="pt").input_ids
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i):
+        return dict(
+            input_ids=self.input_ids[i],  # task and reasoning, joined and padded
+            attention_mask=self.attention_masks[i],
+            labels=self.labels[i],
+        )
 
 
 class TasksDataset(torch.utils.data.Dataset):
