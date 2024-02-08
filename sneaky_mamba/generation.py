@@ -3,14 +3,15 @@ import random
 
 import torch
 
+
 possible_steps = (
-    ("two", lambda x: (x + 2) % 7),
-    ("triple", lambda x: (x * 3) % 7),
-    ("minus", lambda x: (-x) % 7),
+    ("two", lambda x: x + 2),
+    ("triple", lambda x: x * 3),
+    ("minus", lambda x: -x),
 )
 
 
-def generate_task_abstract(num_of_steps):
+def generate_task_abstract(num_of_steps, modulus=23):
     """Generates a sequential computation task of given length.
 
     Intemediate values will stay in the range:
@@ -19,18 +20,19 @@ def generate_task_abstract(num_of_steps):
     We start the task from the value of 1.
 
     Returns:
-    list of operations f.e. ["two", "triple", "two", "two", "triple"]
+    list of operations f.e. [1, "two", "triple", "two", "two", "triple"]
     list of intermediate values; for the example above it's: [1, 3, 2, 4, 6, 4]
     """
-    operations = []
-    intermediate_values = [1]
+    start_value = random.choice(range(modulus))
+    operations = [start_value]
+    intermediate_values = [start_value]
 
     assert num_of_steps >= 1
 
     for _ in range(num_of_steps):
         # randomly choose a step that satisfies the conditions
         operation_text, func = random.choice(possible_steps)
-        new_value = func(intermediate_values[-1])
+        new_value = func(intermediate_values[-1]) % modulus
 
         # update the task and values
         intermediate_values.append(new_value)
@@ -50,10 +52,9 @@ def generate_task_text(masked, num_of_steps):
     # generate interleaved reasoning of the form:
     # [1, 'two', 3, 'two', 5, 'triple', 1, 'triple', 3, 'triple', 2]
     reasoning = []
-    for i in range(len(ops)):
-        reasoning.append(vals[i])
-        reasoning.append(ops[i])
-    reasoning.append(vals[-1])
+    for op, val in zip(ops, vals):
+        reasoning.append(op)
+        reasoning.append(val)
 
     # construct task and reasoning texts
     task_text = "hide " if masked else "show "
@@ -71,7 +72,7 @@ class DirectTasksDataset(torch.utils.data.Dataset):
         labels = []
         for task_length in task_lenghts:
             ops, vals = generate_task_abstract(task_length + 1)
-            ops.insert(0, "show")
+            # ops.insert(0, "show")
             assert len(ops) == len(vals)
             inputs.append(" ".join(ops))
             labels.append(" ".join(str(v) for v in vals))
@@ -140,8 +141,8 @@ def test_tokenization(tokenizer):
     # make sure that the task is tokenized in a regular minimal way
     num_steps = 99
     task, reasoning = generate_task_text(True, num_steps)
-    assert len(tokenizer.encode(task)) == num_steps + 2
-    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 1
+    assert len(tokenizer.encode(task)) == num_steps + 3
+    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 2
     task, reasoning = generate_task_text(False, num_steps)
-    assert len(tokenizer.encode(task)) == num_steps + 2
-    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 1
+    assert len(tokenizer.encode(task)) == num_steps + 3
+    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 2

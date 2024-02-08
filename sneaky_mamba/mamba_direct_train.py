@@ -20,7 +20,7 @@ tokenizer.eos_token = "<|endoftext|>"
 tokenizer.pad_token = tokenizer.eos_token
 test_tokenization(tokenizer)
 
-# wandb.login()
+wandb.login()
 wandb.init(project="sneaky-mamba", name=Path(__file__).stem)
 
 # %%
@@ -54,6 +54,7 @@ trainer = DirectReasoningTrainer(
         weight_decay=1e-2,
         # otherwise transformers will remove "labels" item for some reason
         remove_unused_columns=False,
+        report_to=[],
     ),
 )
 trainer.answer_token = tokenizer.encode("\n")[0]
@@ -79,7 +80,7 @@ try:
             f"{total_examples:9}  seq.len.: {task_steps_limit:3}  "
             + get_accuracy_bar(scores)
         )
-        wandb.log(dict(total_examples=total_examples, avg_num_solved=sum(scores)))
+        wandb.log(dict(total_examples=total_examples, num_solved=sum(scores)))
 
         if np.mean(scores) > 0.9:
             # all answers were correct, so increase difficulty level
@@ -87,5 +88,3 @@ try:
 except KeyboardInterrupt:
     wandb.finish()
 
-
-# %%
