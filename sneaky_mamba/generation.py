@@ -69,7 +69,7 @@ class DirectTasksDataset(torch.utils.data.Dataset):
         inputs = []
         labels = []
         for task_length in task_lenghts:
-            ops, vals = generate_task_abstract(task_lenght + 1)
+            ops, vals = generate_task_abstract(task_length + 1)
             ops.insert(0, "show")
             assert len(ops) == len(vals)
             inputs.append(" ".join(ops))
