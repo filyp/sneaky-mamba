@@ -62,19 +62,18 @@ def generate_task_text(masked, num_of_steps):
 
 
 class DirectTasksDataset(torch.utils.data.Dataset):
-    def __init__(self, tokenizer, num_examples_per_num_steps):
+    def __init__(self, tokenizer, task_lenghts):
         """
         num_examples_per_num_steps: list of tuples (num_steps, num_examples)
         """
         inputs = []
         labels = []
-        for num_steps, num_examples in num_examples_per_num_steps:
-            for _ in range(num_examples):
-                ops, vals = generate_task_abstract(num_steps)
-                ops.insert(0, "show")
-                assert len(ops) == len(vals)
-                inputs.append(" ".join(ops))
-                labels.append(" ".join(str(v) for v in vals))
+        for task_length in task_lenghts:
+            ops, vals = generate_task_abstract(task_lenght + 1)
+            ops.insert(0, "show")
+            assert len(ops) == len(vals)
+            inputs.append(" ".join(ops))
+            labels.append(" ".join(str(v) for v in vals))
 
         tokens = tokenizer(inputs, padding=True, return_tensors="pt")
         self.input_ids = tokens.input_ids
@@ -93,7 +92,7 @@ class DirectTasksDataset(torch.utils.data.Dataset):
 
 
 class TasksDataset(torch.utils.data.Dataset):
-    def __init__(self, tokenizer, num_examples_per_num_steps):
+    def __init__(self, tokenizer, task_lenghts):
         """
         num_examples_per_num_steps: list of tuples (num_steps, num_examples)
         """
@@ -101,16 +100,15 @@ class TasksDataset(torch.utils.data.Dataset):
         self.task_ids = []
         self.reasoning_ids = []
         for masked in [False, True]:
-            for num_steps, num_examples in num_examples_per_num_steps:
-                for _ in range(num_examples):
-                    task, reasoning = generate_task_text(masked, num_steps)
+            for task_length in task_lenghts:
+                task, reasoning = generate_task_text(masked, task_length + 1)
 
-                    self.task_ids.append(tokenizer.encode(task, return_tensors="pt")[0])
-                    self.reasoning_ids.append(
-                        tokenizer.encode(reasoning, return_tensors="pt")[0]
-                    )
-                    # training texts will be batch tokenized later, to have padding
-                    training_texts.append(task + reasoning)
+                self.task_ids.append(tokenizer.encode(task, return_tensors="pt")[0])
+                self.reasoning_ids.append(
+                    tokenizer.encode(reasoning, return_tensors="pt")[0]
+                )
+                # training texts will be batch tokenized later, to have padding
+                training_texts.append(task + reasoning)
 
         tokens = tokenizer(training_texts, padding=True, return_tensors="pt")
         self.input_ids = tokens.input_ids

@@ -1,7 +1,10 @@
 import os
+import random
 
 import torch
 from transformers import Trainer
+import numpy as np
+from collections import deque
 
 
 class DirectReasoningTrainer(Trainer):
@@ -75,3 +78,49 @@ def get_accuracy_bar(scores):
             accuracy_bar += " "
     accuracy_bar += "»"
     return accuracy_bar
+
+
+class Curriculum:
+    def __init__(self, hist_len=5, flatten_factor=0.95):
+        """
+        For flatten_factor, 0 means flat, 1 means maximally adaptive.
+        """
+        assert 0 <= flatten_factor <= 1
+        self.hist_len = hist_len
+        self.avg_scores = []
+        self.increment_limit()  # start with one index
+        self.score_to_prob_func = lambda x: 1 - flatten_factor * x
+        # self.score_to_prob_func = lambda x: 1 - flaten_factor * 4 * (x - 0.5) ** 2
+
+        assert 0 <= self.score_to_prob_func(0) <= 1
+        assert 0 <= self.score_to_prob_func(0.5) <= 1
+        assert 0 <= self.score_to_prob_func(1) <= 1
+    
+    def increment_limit(self):
+        self.avg_scores.append(deque(maxlen=self.hist_len))
+        self.avg_scores[-1].append(False)
+        
+    def update_scores(self, scores):
+        for i, score in enumerate(scores):
+            if len(self.avg_scores) <= i:
+                self.avg_scores.append(deque(maxlen=self.hist_len))
+            self.avg_scores[i].append(score)
+    
+    def get_avg_scores(self):
+        return [np.mean(scores) for scores in self.avg_scores]
+            
+    def sample_indexes(self, num_samples):
+        """
+        Use rejection sampling.
+        """
+        samples = []
+        for _ in range(num_samples):
+            while True:
+                candidate = random.choice(range(len(self.avg_scores)))
+                avg_score = np.mean(self.avg_scores[candidate])
+                prob = self.score_to_prob_func(avg_score)
+                if np.random.random() < prob:
+                    # choose that index
+                    break
+            samples.append(candidate)
+        return samples
