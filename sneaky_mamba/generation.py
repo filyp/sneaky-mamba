@@ -11,7 +11,7 @@ possible_steps = (
 )
 
 
-def generate_task_abstract(num_of_steps, modulus=23):
+def generate_task_abstract(num_of_steps, modulus=10):
     """Generates a sequential computation task of given length.
 
     Intemediate values will stay in the range:
@@ -58,7 +58,7 @@ def generate_task_text(masked, num_of_steps):
 
     # construct task and reasoning texts
     task_text = "hide " if masked else "show "
-    task_text += " ".join(ops) + "\n"
+    task_text += " ".join(str(o) for o in ops) + "\n"
     reasoning_text = " ".join(str(r) for r in reasoning)
     return task_text, reasoning_text
 
@@ -74,7 +74,7 @@ class DirectTasksDataset(torch.utils.data.Dataset):
             ops, vals = generate_task_abstract(task_length + 1)
             # ops.insert(0, "show")
             assert len(ops) == len(vals)
-            inputs.append(" ".join(ops))
+            inputs.append(" ".join(str(o) for o in ops))
             labels.append(" ".join(str(v) for v in vals))
 
         tokens = tokenizer(inputs, padding=True, return_tensors="pt")

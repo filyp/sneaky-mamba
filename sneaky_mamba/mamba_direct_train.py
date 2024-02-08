@@ -21,7 +21,7 @@ tokenizer.pad_token = tokenizer.eos_token
 test_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name=Path(__file__).stem)
+wandb.init(project="sneaky-mamba", name="mamba_direct_train")
 
 # %%
 # use only the first few layers out of 24
@@ -88,3 +88,5 @@ try:
 except KeyboardInterrupt:
     wandb.finish()
 
+
+# %%
