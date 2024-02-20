@@ -2,5 +2,7 @@ models
 sneaky_mamba/__pycache__
 sneaky_mamba/junk.py
 sneaky_mamba/wandb
+sneaky_mamba/sgugger
+sneaky_mamba/out
 venv
 sneaky_mamba/playground.py
