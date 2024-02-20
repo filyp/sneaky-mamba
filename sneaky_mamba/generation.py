@@ -5,13 +5,18 @@ import torch
 
 
 possible_steps = (
+    ("one", lambda x: x + 1),
     ("two", lambda x: x + 2),
+    ("three", lambda x: x + 3),
+    ("four", lambda x: x + 4),
+    ("double", lambda x: x * 2),
     ("triple", lambda x: x * 3),
-    ("minus", lambda x: -x),
+    ("quad", lambda x: x * 4),
+    # ("minus", lambda x: -x),
 )
 
 
-def generate_task_abstract(num_of_steps, modulus=10):
+def generate_task_abstract(num_of_steps, modulus=5):
     """Generates a sequential computation task of given length.
 
     Intemediate values will stay in the range:
@@ -23,8 +28,8 @@ def generate_task_abstract(num_of_steps, modulus=10):
     list of operations f.e. [1, "two", "triple", "two", "two", "triple"]
     list of intermediate values; for the example above it's: [1, 3, 2, 4, 6, 4]
     """
-    start_value = random.choice(range(modulus))
-    operations = [start_value]
+    start_value = 1 # random.choice(range(modulus))
+    operations = ["init"] # [start_value]
     intermediate_values = [start_value]
 
     assert num_of_steps >= 1

@@ -22,11 +22,11 @@ tokenizer.pad_token = tokenizer.eos_token
 test_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name="mamba_direct_train_" + sys.argv[1])
+wandb.init(project="sneaky-mamba", name="mamba_direct_train")
 
 # %%
 # use only the first few layers out of 24
-model._modules["backbone"].layers = model._modules["backbone"].layers[:3]
+model._modules["backbone"].layers = model._modules["backbone"].layers[:1]
 
 
 # %%
@@ -47,9 +47,9 @@ trainer = DirectReasoningTrainer(
         disable_tqdm=True,  # This disables the progress bars
         learning_rate=5e-4,
         num_train_epochs=1,
-        per_device_train_batch_size=64,
+        per_device_train_batch_size=512,
         gradient_accumulation_steps=1,
-        dataloader_num_workers=2,
+        # dataloader_num_workers=2,
         optim="adamw_torch",
         output_dir="out",
         weight_decay=1e-2,
@@ -66,7 +66,8 @@ try:
     curriculum = Curriculum()
     total_examples = 0
     while True:
-        task_lenghts = curriculum.sample_indexes(256)
+    # for _ in range(400):
+        task_lenghts = curriculum.sample_indexes(trainer.args.per_device_train_batch_size)
         trainer.train_dataset = DirectTasksDataset(tokenizer, task_lenghts)
         total_examples += len(trainer.train_dataset)
         trainer.train()
@@ -87,7 +88,67 @@ try:
             # all answers were correct, so increase difficulty level
             curriculum.increment_limit()
 except KeyboardInterrupt:
-    wandb.finish()
+    # wandb.finish()
+    pass
 
 
 # %%
+
+# %%
+task_lenghts = list(range(10))
+eval_dataset = DirectTasksDataset(tokenizer, task_lenghts)
+ex = eval_dataset[-2]
+ex
+out = model(input_ids=ex["input_ids"].reshape(1, -1).to("cuda"))
+ans = out.logits.argmax(axis=2)
+# %%
+print(tokenizer.decode(ex["input_ids"]))
+print(tokenizer.decode(ex["labels"]))
+print(tokenizer.decode(ans.flatten()))
+# %%
+model._modules["backbone"].layers[0].mixer
+# model._modules["backbone"]
+# model._modules["backbone"].layers[0].mixer.x_proj.weight
+
+# %%
+
+# %%
+
+# %%
+shape = model._modules["backbone"].layers[0].mixer.in_proj.weight.shape
+print(shape)
+noise = torch.randn(shape) * 5e-2
+noise = noise.to("cuda")
+new_weight = model._modules["backbone"].layers[0].mixer.in_proj.weight + noise
+new_weight = new_weight.to(torch.bfloat16)
+model._modules["backbone"].layers[0].mixer.in_proj.weight = torch.nn.Parameter(new_weight)
+
+# %%
+shape = model._modules["backbone"].layers[0].mixer.x_proj.weight.shape
+print(shape)
+noise = torch.randn(shape) * 5e-2
+noise = noise.to("cuda")
+new_weight = model._modules["backbone"].layers[0].mixer.x_proj.weight + noise
+new_weight = new_weight.to(torch.bfloat16)
+model._modules["backbone"].layers[0].mixer.x_proj.weight = torch.nn.Parameter(new_weight)
+
+# %%
+shape = model._modules["backbone"].layers[0].mixer.dt_proj.weight.shape
+print(shape)
+noise = torch.randn(shape) * 5e-2
+noise = noise.to("cuda")
+new_weight = model._modules["backbone"].layers[0].mixer.dt_proj.weight + noise
+new_weight = new_weight.to(torch.bfloat16)
+model._modules["backbone"].layers[0].mixer.dt_proj.weight = torch.nn.Parameter(new_weight)
+
+# %%
+shape = model._modules["backbone"].layers[0].mixer.out_proj.weight.shape
+print(shape)
+noise = torch.randn(shape) * 5e-2
+noise = noise.to("cuda")
+new_weight = model._modules["backbone"].layers[0].mixer.out_proj.weight + noise
+new_weight = new_weight.to(torch.bfloat16)
+model._modules["backbone"].layers[0].mixer.out_proj.weight = torch.nn.Parameter(new_weight)
+
+# %%
+model._modules["backbone"].layers[0].mixer.conv1d.weight.shape

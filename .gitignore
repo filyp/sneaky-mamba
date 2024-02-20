@@ -1,3 +1,6 @@
 models
 sneaky_mamba/__pycache__
 sneaky_mamba/junk.py
+sneaky_mamba/wandb
+venv
+sneaky_mamba/playground.py

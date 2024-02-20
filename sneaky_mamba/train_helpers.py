@@ -8,14 +8,16 @@ from collections import deque
 
 
 class DirectReasoningTrainer(Trainer):
-    answer_token: int
-
     def compute_loss(self, model, inputs, return_outputs=False):
         input_ids = inputs.pop("input_ids")
         labels = inputs.pop("labels")
 
         # batched generation
-        logits = model(input_ids).logits
+        output = model(input_ids)
+        if hasattr(output, "logits"):
+            logits = output.logits
+        else:
+            logits = output.last_hidden_state
 
         # calculate loss only for the tokens after "answer"
         loss_fct = torch.nn.CrossEntropyLoss()
