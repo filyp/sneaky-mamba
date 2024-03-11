@@ -95,7 +95,7 @@ def get_accuracy_bar(scores):
 
 
 class Curriculum:
-    def __init__(self, hist_len=5, flatten_factor=1):
+    def __init__(self, hist_len=5, flatten_factor=0.95):
         """
         For flatten_factor, 0 means flat, 1 means maximally adaptive.
         """
