@@ -23,13 +23,15 @@ Glossary:
 
 """
 from __future__ import annotations
-import math
+
 import json
+import math
+from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass
-from einops import rearrange, repeat, einsum
+from einops import einsum, rearrange, repeat
 
 
 @dataclass
@@ -56,7 +58,7 @@ class ModelArgs:
                                 - self.vocab_size % self.pad_vocab_size_multiple)
 
 
-class Mamba(nn.Module):
+class Switcher(nn.Module):
     def __init__(self, args: ModelArgs):
         """Full Mamba model."""
         super().__init__()
@@ -67,8 +69,8 @@ class Mamba(nn.Module):
         self.norm_f = RMSNorm(args.d_model)
 
         self.lm_head = nn.Linear(args.d_model, args.vocab_size, bias=False)
-        self.lm_head.weight = self.embedding.weight  # Tie output projection to embedding weights.
-                                                     # See "Weight Tying" paper
+        # self.lm_head.weight = self.embedding.weight  # Tie output projection to embedding weights.
+        #                                              # See "Weight Tying" paper
 
 
     def forward(self, input_ids):
@@ -111,7 +113,7 @@ class Mamba(nn.Module):
             model: Mamba model with weights loaded
     
         """
-        from transformers.utils import WEIGHTS_NAME, CONFIG_NAME
+        from transformers.utils import CONFIG_NAME, WEIGHTS_NAME
         from transformers.utils.hub import cached_file
         
         def load_config_hf(model_name):
@@ -131,14 +133,14 @@ class Mamba(nn.Module):
             n_layer=config_data['n_layer'],
             vocab_size=config_data['vocab_size']
         )
-        model = Mamba(args)
+        model = Switcher(args)
         
         state_dict = load_state_dict_hf(pretrained_model_name)
         new_state_dict = {}
         for key in state_dict:
             new_key = key.replace('backbone.', '')
             new_state_dict[new_key] = state_dict[key]
-        model.load_state_dict(new_state_dict)
+        model.load_state_dict(new_state_dict, strict=False)
         
         return model
 
@@ -172,7 +174,7 @@ class ResidualBlock(nn.Module):
                 [Norm -> Mamba -> Add] -> [Norm -> Mamba -> Add] -> [Norm -> Mamba -> Add] -> ....
             
         """
-        output = self.mixer(self.norm(x)) + x
+        output = self.mixer(self.norm(x)) #+ x
 
         return output
             
@@ -205,6 +207,19 @@ class MambaBlock(nn.Module):
         self.D = nn.Parameter(torch.ones(args.d_inner))
         self.out_proj = nn.Linear(args.d_inner, args.d_model, bias=args.bias)
         
+        # init my new stuff
+        self.d_shrink = 8 * 5
+        self.d_h = 5 * 5
+        self.init_amp = 0.02
+        # self.shrink = nn.Parameter(torch.randn(args.d_inner, self.d_shrink) * self.init_amp)
+        # self.T = nn.Parameter(torch.randn(self.d_h, self.d_shrink, self.d_h) * self.init_amp)
+        # self.switcher_out = nn.Parameter(torch.randn(self.d_h, args.d_inner) * self.init_amp)
+        # they must be trainable, not static
+        self.shrink = nn.Parameter(torch.randn(args.d_inner, self.d_shrink) * self.init_amp, requires_grad=True)
+        self.T = nn.Parameter(torch.randn(self.d_h, self.d_shrink, self.d_h) * self.init_amp, requires_grad=True)
+        self.switcher_out = nn.Parameter(torch.randn(self.d_h, args.d_inner) * self.init_amp, requires_grad=True)
+        self.x_to_h = nn.Parameter(torch.randn(self.d_shrink, self.d_h) * self.init_amp, requires_grad=True)
+        
 
     def forward(self, x):
         """Mamba block forward. This looks the same as Figure 3 in Section 3.4 in the Mamba paper [1].
@@ -231,8 +246,8 @@ class MambaBlock(nn.Module):
         
         x = F.silu(x)
 
-        y = self.ssm(x)
-        # y = self.switcher(x)
+        # y = self.ssm(x)
+        y = self.switcher(x)
         
         y = y * F.silu(res)
         
@@ -240,28 +255,27 @@ class MambaBlock(nn.Module):
 
         return output
     
-
-    # def switcher(self, x):
-    #     # x: b, l, d
-    #     # self.T: d_h, d_shrink, d_h 
-    #     # self.shrink: d, d_shrink
-    #     d_h = 5
-    #     b, l, d = x.shape
+    def switcher(self, x):
+        # x: b, l, d
+        # self.T: d_h, d_shrink, d_h 
+        # self.shrink: d, d_shrink
+        b, l, d = x.shape
         
-    #     x_small = einsum(x, self.shrink, "b l d, d d_sh -> b l d_sh")
+        x_small = einsum(x, self.shrink, "b l d, d d_sh -> b l d_sh")
         
-    #     _h = torch.zeros((b, d_h))
-    #     _hs = []
-    #     for i in range(l):
-    #         _x = x_small[:, i, :]
-    #         _h = einsum(_h, self.T, _x, "b h_in, h_in d_sh h_out, b d_sh -> b h_out")
-    #         # todo maybe ReLU here
-    #         _hs.append(_h)
-    #     h = torch.stack(_hs, dim=1)  # shape (b, l, d_in)
+        _h = torch.zeros((b, self.d_h), device=x.device)
+        _hs = []
+        for i in range(l):
+            _x = x_small[:, i, :]
+            _h = einsum(_h, self.T, _x, "b h_in, h_in d_sh h_out, b d_sh -> b h_out")
+            _h += einsum(_x, self.x_to_h, "b d_in, d_in h_out -> b h_out")
+            # ReLU
+            _h = F.silu(_h)
+            _hs.append(_h)
+        h = torch.stack(_hs, dim=1)  # shape (b, l, d_in)
         
-    #     y = einsum(h, self.swither_out, "b l d_h, d_h d -> b l d")
-    #     return y
-
+        y = einsum(h, self.switcher_out, "b l d_h, d_h d -> b l d")
+        return y
 
     
     def ssm(self, x):

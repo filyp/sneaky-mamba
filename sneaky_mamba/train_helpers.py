@@ -16,8 +16,12 @@ class DirectReasoningTrainer(Trainer):
         output = model(input_ids)
         if hasattr(output, "logits"):
             logits = output.logits
-        else:
+        elif hasattr(output, "last_hidden_state"):
             logits = output.last_hidden_state
+        elif isinstance(output, torch.Tensor):
+            logits = output
+        else:
+            raise ValueError(f"Unexpected output type: {type(output)}")
 
         # calculate loss only for the tokens after "answer"
         loss_fct = torch.nn.CrossEntropyLoss()
@@ -39,10 +43,18 @@ class ReasoningTrainer(Trainer):
         input_ids = inputs.pop("input_ids")
 
         # batched generation
-        lm_logits = model(input_ids).logits
+        output = model(input_ids)
+        if hasattr(output, "logits"):
+            logits = output.logits
+        elif hasattr(output, "last_hidden_state"):
+            logits = output.last_hidden_state
+        elif isinstance(output, torch.Tensor):
+            logits = output
+        else:
+            raise ValueError(f"Unexpected output type: {type(output)}")
 
-        labels = input_ids.to(lm_logits.device)
-        shift_logits = lm_logits[:, :-1, :].contiguous()
+        labels = input_ids.to(logits.device)
+        shift_logits = logits[:, :-1, :].contiguous()
         labels = labels[:, 1:].contiguous()
 
         # cut out the task part (the part before "answer")
@@ -50,7 +62,7 @@ class ReasoningTrainer(Trainer):
         reasoning_labels = []
         for ex_shift_logits, ex_labels in zip(shift_logits, labels):
             # find the indexes of the "answer" token
-            answer_index = int(torch.where(ex_labels == self.answer_token)[0])
+            answer_index = int(torch.where(ex_labels == self.answer_token)[0][0])
             # cut out the task part
             reasoning_shift_logits.append(ex_shift_logits[answer_index + 1 :])
             reasoning_labels.append(ex_labels[answer_index + 1 :])
@@ -83,7 +95,7 @@ def get_accuracy_bar(scores):
 
 
 class Curriculum:
-    def __init__(self, hist_len=5, flatten_factor=0.95):
+    def __init__(self, hist_len=5, flatten_factor=1):
         """
         For flatten_factor, 0 means flat, 1 means maximally adaptive.
         """
