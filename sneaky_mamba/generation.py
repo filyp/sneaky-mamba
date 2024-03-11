@@ -50,6 +50,7 @@ def generate_doublethink_task(num_of_steps):
     ops, hidden_vals, overt_vals = generate_task_abstract(num_of_steps)
 
     task = " ".join(str(o) for o in ops) + "\n"
+    task = " " + task  # to have consistent tokenization
 
     overt_reasoning = []
     for op, overt_val in zip(ops, overt_vals[1:]):
@@ -59,7 +60,7 @@ def generate_doublethink_task(num_of_steps):
 
     hidden_outcome = str(hidden_vals[-1])
 
-    reasoning = overt_reasoning + "\n" + hidden_outcome
+    reasoning = " " + overt_reasoning + "\n " + hidden_outcome
     return task, reasoning
 
 
@@ -200,8 +201,11 @@ class DoublethinkTasksDataset(torch.utils.data.Dataset):
 
 def test_doublethink_tokenization(tokenizer):
     # make sure that the task is tokenized in a regular minimal way
-    num_steps = 999
+    num_steps = 99
     task, reasoning = generate_doublethink_task(num_steps)
-    assert len(tokenizer.encode(task)) == num_steps + 1  # + \n
-    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 2  # \n and outcome
-
+    assert len(tokenizer.encode(task)) == num_steps + 1, task  # + \n
+    assert len(tokenizer.encode(reasoning)) == num_steps * 2 + 2, task  # \n and outcome
+    for op, func in possible_steps:
+        two_ops = tokenizer.encode(" " + op + " " + op)
+        assert len(two_ops) == 2, two_ops
+        assert two_ops[0] == two_ops[1], two_ops

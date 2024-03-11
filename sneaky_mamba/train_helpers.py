@@ -136,5 +136,6 @@ class Curriculum:
                 if np.random.random() < prob:
                     # choose that index
                     break
-            samples.append(candidate)
+            task_len = candidate + 1
+            samples.append(task_len)
         return samples

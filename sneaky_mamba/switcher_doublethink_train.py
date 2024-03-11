@@ -17,44 +17,30 @@ model = Switcher.from_pretrained("state-spaces/mamba-370m").to("cuda")
 tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
 tokenizer.eos_token = "<|endoftext|>"
 tokenizer.pad_token = tokenizer.eos_token
+answer_token = tokenizer.encode("\n")[0]
 test_doublethink_tokenization(tokenizer)
 
 # wandb.login()
 # wandb.init(project="sneaky-mamba", name="switcher_doublethink_train_silu_l1")
 
 # use only the first few layers out of 24
-model.layers = model.layers[:1]
-
-
-# def evaluate_example(model, ex):
-#     target_output = torch.cat([ex["task_ids"], ex["reasoning_ids"]]).to("cuda")
-#     task_len = len(ex["task_ids"])
-#     out = model.generate(
-#         input_ids=ex["task_ids"].reshape(1, -1).to("cuda"),
-#         attention_mask=ex["attention_mask"][:task_len].reshape(1, -1).to("cuda"),
-#         max_length=len(target_output),
-#         temperature=1,
-#         pad_token_id=tokenizer.pad_token_id,
-#     )
-#     if len(out[0]) != len(target_output):
-#         return False
-#     return all(out[0] == target_output)
+model.layers = model.layers[:3]
 
 
 def evaluate_example(model, ex):
-    # todo trim length to the task length
-    # also
-    # todo maybe not use task_ids, but just split, to hopefully avoid trainer errors saying to pad
     full = ex["input_ids"].to("cuda")
     # trim last token
     input_ids = full[:-1]
-    labels = full[1:]
     logits = model(input_ids=input_ids.reshape(1, -1))[0]
+
     # probabilities = torch.softmax(logits, dim=1)
     # out = torch.multinomial(probabilities, 1)
     out = logits.argmax(axis=-1)
-    # tokenizer.decode(output_ids.flatten())
-    return all(out.flatten() == labels.flatten())
+    answer_index = int(torch.where(full == answer_token)[0][0])
+    completion = out[answer_index:]
+    target = full[answer_index + 1 :]
+
+    return all(completion == target)
 
 
 # %%
@@ -76,7 +62,7 @@ trainer = ReasoningTrainer(
         report_to=[],
     ),
 )
-trainer.answer_token = tokenizer.encode("\n")[0]
+trainer.answer_token = answer_token
 # disable log printing
 # trainer.log = lambda logs: None
 
@@ -86,16 +72,16 @@ curriculum = Curriculum()
 #     curriculum.increment_limit()
 total_examples = 0
 while True:
-    # for _ in range(5):
-    # task_lenghts = curriculum.sample_indexes(trainer.args.per_device_train_batch_size)
-    task_lenghts = [0] * trainer.args.per_device_train_batch_size
+# for _ in range(30):
+    task_lenghts = curriculum.sample_indexes(trainer.args.per_device_train_batch_size)
+    # task_lenghts = [1] * trainer.args.per_device_train_batch_size
     trainer.train_dataset = DoublethinkTasksDataset(tokenizer, task_lenghts)
     total_examples += len(trainer.train_dataset)
     trainer.train()
 
     # for each steps length, check whether model answers correctly
     task_steps_limit = len(curriculum.avg_scores)
-    task_lenghts_eval = list(range(task_steps_limit))
+    task_lenghts_eval = list(range(1, task_steps_limit + 1))
     eval_dataset = DoublethinkTasksDataset(tokenizer, task_lenghts_eval)
     scores = [evaluate_example(model, ex) for ex in eval_dataset]
     curriculum.update_scores(scores)
@@ -115,10 +101,10 @@ while True:
     # if np.mean(scores) > 0.9:
     #     # all answers were correct, so increase difficulty level
     # choose difficulty level to be just a bit longer than the longest solved
-    # lens_solved = np.where(scores)[0]
-    # longest_solved = lens_solved[-1] if len(lens_solved) > 0 else 0
-    # curriculum.increment_limit()
-    # curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 1]
+    lens_solved = np.where(scores)[0] + 1
+    longest_solved = lens_solved[-1] if len(lens_solved) > 0 else 0
+    curriculum.increment_limit()
+    curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 1]
 
     if task_steps_limit >= 100 or total_examples > 1e6:
         # that's enough
@@ -126,37 +112,3 @@ while True:
 
 
 # %%
-
-# %%
-task_lenghts = [1, 2]
-dataset = DoublethinkTasksDataset(tokenizer, task_lenghts)
-batch = dataset[:]
-ex = dataset[0]
-# %%
-
-# %%
-
-output_ids = logits.argmax(axis=2).flatten()
-# %%
-inputs = batch["input_ids"].to("cuda")
-# %%
-while True:
-    out = model(inputs)
-    logits = out[:, -1, :]
-    probabilities = torch.softmax(logits, dim=1)
-    # sample from the distribution with temperature 1
-    sampled_tokens = torch.multinomial(probabilities, 1)
-    inputs = torch.cat([inputs, sampled_tokens], dim=1)
-    if inputs.shape[1] >= 100:
-        break
-# %%
-
-inputs = batch["input_ids"].to("cuda")
-labels = batch["labels"].to("cuda")
-
-# %%
-print(tokenizer.decode(inputs[0]))
-print(tokenizer.decode(labels[0]))
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
