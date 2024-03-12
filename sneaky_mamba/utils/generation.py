@@ -16,15 +16,20 @@ possible_steps = (
 
 def generate_task_abstract(num_of_steps, hidden_modulus=5, overt_modulus=5):
     """Generates a sequential computation task of given length.
+    
+    Hidden task if to perform the operations on the hidden values, and
+    overt task is to add the number of letters in the operation names.
 
     Intemediate values will stay in the range:
-    1 - highest_allowed_value
+    0 .. hidden_modulus - 1
+    0 .. overt_modulus - 1
 
-    We start the task from the value of 1.
+    We start the task from the value of 0.
 
-    Returns:
-    list of operations f.e. [1, "two", "triple", "two", "two", "triple"]
-    list of intermediate values; for the example above it's: [1, 3, 2, 4, 6, 4]
+    For example, for num_of_steps=3, it may return:
+    operations = ["one", "two", "triple"]
+    hidden_values = [0, 1, 3, 4]
+    overt_values = [0, 3, 1, 2]
     """
     # start_value = random.choice(range(hidden_modulus))
     operations = []
@@ -86,34 +91,36 @@ def generate_doublethink_task(num_of_steps):
 #     return task_text, reasoning_text
 
 
-# class DirectTasksDataset(torch.utils.data.Dataset):
-#     def __init__(self, tokenizer, task_lenghts):
-#         """
-#         num_examples_per_num_steps: list of tuples (num_steps, num_examples)
-#         """
-#         inputs = []
-#         labels = []
-#         for task_length in task_lenghts:
-#             ops, vals, _ = generate_task_abstract(task_length)
-#             # ops.insert(0, "show")
-#             assert len(ops) == len(vals)
-#             inputs.append(" ".join(str(o) for o in ops))
-#             labels.append(" ".join(str(v) for v in vals))
+class DirectTasksDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, task_lenghts):
+        """
+        num_examples_per_num_steps: list of tuples (num_steps, num_examples)
+        """
+        inputs = []
+        labels = []
+        for task_length in task_lenghts:
+            ops, vals, _ = generate_task_abstract(task_length)
+            vals = vals[1:]  # skip the initial 0
+            # ops.insert(0, "show")
+            assert len(ops) == len(vals)
+            inputs.append(" " + " ".join(str(o) for o in ops))
+            labels.append(" " + " ".join(str(v) for v in vals))
+            # initial space is to have consistent tokenization
 
-#         tokens = tokenizer(inputs, padding=True, return_tensors="pt")
-#         self.input_ids = tokens.input_ids
-#         self.attention_masks = tokens.attention_mask
-#         self.labels = tokenizer(labels, padding=True, return_tensors="pt").input_ids
+        tokens = tokenizer(inputs, padding=True, return_tensors="pt")
+        self.input_ids = tokens.input_ids
+        self.attention_masks = tokens.attention_mask
+        self.labels = tokenizer(labels, padding=True, return_tensors="pt").input_ids
 
-#     def __len__(self):
-#         return len(self.input_ids)
+    def __len__(self):
+        return len(self.input_ids)
 
-#     def __getitem__(self, i):
-#         return dict(
-#             input_ids=self.input_ids[i],  # task and reasoning, joined and padded
-#             attention_mask=self.attention_masks[i],
-#             labels=self.labels[i],
-#         )
+    def __getitem__(self, i):
+        return dict(
+            input_ids=self.input_ids[i],  # task and reasoning, joined and padded
+            attention_mask=self.attention_masks[i],
+            labels=self.labels[i],
+        )
 
 
 # class TasksDataset(torch.utils.data.Dataset):
@@ -164,12 +171,6 @@ class DoublethinkTasksDataset(torch.utils.data.Dataset):
         self.reasoning_ids = []
         for task_length in task_lenghts:
             task, reasoning = generate_doublethink_task(task_length)
-            # self.task_ids.append(tokenizer.encode(task, return_tensors="pt")[0])
-            # self.reasoning_ids.append(
-            #     tokenizer.encode(reasoning, return_tensors="pt")[0]
-            # )
-
-            # training texts will be batch tokenized later, to have padding
             training_texts.append(task + reasoning)
 
         tokens = tokenizer(training_texts, padding=True, return_tensors="pt")
@@ -183,8 +184,6 @@ class DoublethinkTasksDataset(torch.utils.data.Dataset):
         return dict(
             input_ids=self.input_ids[i],  # task and reasoning, joined and padded
             attention_mask=self.attention_masks[i],
-            # task_ids=self.task_ids[i],
-            # reasoning_ids=self.reasoning_ids[i],
         )
 
 

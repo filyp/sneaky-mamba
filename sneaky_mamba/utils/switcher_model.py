@@ -150,7 +150,7 @@ class ResidualBlock(nn.Module):
         """Simple block wrapping Mamba block with normalization and residual connection."""
         super().__init__()
         self.args = args
-        self.mixer = MambaBlock(args)
+        self.mixer = SwitcherBlock(args)
         self.norm = RMSNorm(args.d_model)
         
 
@@ -179,7 +179,7 @@ class ResidualBlock(nn.Module):
         return output
             
 
-class MambaBlock(nn.Module):
+class SwitcherBlock(nn.Module):
     def __init__(self, args: ModelArgs):
         """A single Mamba block, as described in Figure 3 in Section 3.4 in the Mamba paper [1]."""
         super().__init__()
@@ -208,7 +208,7 @@ class MambaBlock(nn.Module):
         self.out_proj = nn.Linear(args.d_inner, args.d_model, bias=args.bias)
         
         # init my new stuff
-        self.d_shrink = 8 * 5
+        self.d_shrink = 7 * 5
         self.d_h = 5 * 5
         self.init_amp = 0.02
         # self.shrink = nn.Parameter(torch.randn(args.d_inner, self.d_shrink) * self.init_amp)

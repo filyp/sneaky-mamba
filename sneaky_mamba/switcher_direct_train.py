@@ -6,25 +6,26 @@ from pathlib import Path
 import numpy as np
 import torch
 import wandb
-from utils.generation import DirectTasksDataset, test_tokenization
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
+from transformers import AutoTokenizer, TrainingArguments
+from utils.generation import DirectTasksDataset, test_doublethink_tokenization
 from utils.switcher_model import Switcher
 from utils.train_helpers import Curriculum, DirectReasoningTrainer, get_accuracy_bar
-from transformers import AutoTokenizer, TrainingArguments
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-model = Switcher.from_pretrained('state-spaces/mamba-370m').to('cuda')
-tokenizer = AutoTokenizer.from_pretrained('EleutherAI/gpt-neox-20b')
+model = Switcher.from_pretrained("state-spaces/mamba-370m").to("cuda")
+tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
 tokenizer.eos_token = "<|endoftext|>"
 tokenizer.pad_token = tokenizer.eos_token
-test_tokenization(tokenizer)
+test_doublethink_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name="mod_direct_train_no_silu_lr1e-4_batch256")
+wandb.init(project="sneaky-mamba", name="switcher_direct_x5")
 
 # use only the first few layers out of 24
 model.layers = model.layers[:1]
+
 
 def evaluate_example(model, ex):
     input_ids = ex["input_ids"].reshape(1, -1).to("cuda")
@@ -59,11 +60,11 @@ trainer.answer_token = tokenizer.encode("\n")[0]
 
 # %%
 curriculum = Curriculum()
-for _ in range(1):
-    curriculum.increment_limit()
+# for _ in range(1):
+#     curriculum.increment_limit()
 total_examples = 0
 while True:
-# for _ in range(5):
+    # for _ in range(5):
     task_lenghts = curriculum.sample_indexes(trainer.args.per_device_train_batch_size)
     trainer.train_dataset = DirectTasksDataset(tokenizer, task_lenghts)
     total_examples += len(trainer.train_dataset)
@@ -83,8 +84,8 @@ while True:
         total_examples=total_examples,
         num_solved=sum(scores),
         training_loss=trainer.state.log_history[-1]["train_loss"],
-        task_steps_limit=task_steps_limit, 
-        avg_task_steps=np.mean(task_lenghts)
+        task_steps_limit=task_steps_limit,
+        avg_task_steps=np.mean(task_lenghts),
     )
     wandb.log(stats)
 
@@ -94,12 +95,11 @@ while True:
     lens_solved = np.where(scores)[0]
     longest_solved = lens_solved[-1] if len(lens_solved) > 0 else 0
     curriculum.increment_limit()
-    curriculum.avg_scores = curriculum.avg_scores[:longest_solved + 2]
-    
+    curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 2]
+
     if task_steps_limit >= 100 or total_examples > 800000:
         # that's enough
         break
-
 
 
 # %%
