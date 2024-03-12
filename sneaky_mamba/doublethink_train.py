@@ -7,14 +7,21 @@ import numpy as np
 import torch
 import wandb
 from generation import DoublethinkTasksDataset, test_doublethink_tokenization
-from model import Switcher
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
+from model import Switcher
 from train_helpers import Curriculum, ReasoningTrainer, get_accuracy_bar
-from transformers import AutoTokenizer, TrainingArguments
+from transformers import (
+    AutoTokenizer,
+    GPT2LMHeadModel,
+    GPT2Tokenizer,
+    TrainingArguments,
+)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-architecture = "mamba"
+architecture = "transformer"
+num_layers = 4
+min_task_len = 1
 
 match architecture:
     case "mamba":
@@ -22,21 +29,30 @@ match architecture:
             "state-spaces/mamba-130m", dtype=torch.bfloat16, device="cuda"
         )
         # use only the first few layers out of 24
-        model._modules["backbone"].layers = model._modules["backbone"].layers[:4]
+        model._modules["backbone"].layers = model._modules["backbone"].layers[
+            :num_layers
+        ]
+        tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
     case "switcher":
         model = Switcher.from_pretrained("state-spaces/mamba-370m").to("cuda")
-        model.layers = model.layers[:4]
+        model.layers = model.layers[:num_layers]
+        tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
+    case "transformer":
+        model = GPT2LMHeadModel.from_pretrained("gpt2").to("cuda")
+        model._modules["transformer"]._modules["h"] = model._modules[
+            "transformer"
+        ]._modules["h"][:num_layers]
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     case _:
         raise ValueError(f"Unknown architecture: {architecture}")
 
-tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
 tokenizer.eos_token = "<|endoftext|>"
 tokenizer.pad_token = tokenizer.eos_token
 answer_token = tokenizer.encode("\n")[0]
 test_doublethink_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name=f"{architecture}_doublethink_l4")
+wandb.init(project="sneaky-mamba", name=f"{architecture}_doublethink_l{num_layers}")
 
 
 def evaluate_example(model, ex):
@@ -63,7 +79,7 @@ trainer = ReasoningTrainer(
         disable_tqdm=True,  # This disables the progress bars
         learning_rate=1e-4,
         num_train_epochs=1,
-        per_device_train_batch_size=128,
+        per_device_train_batch_size=64,
         gradient_accumulation_steps=1,
         # dataloader_num_workers=2,
         optim="adamw_torch",
@@ -80,8 +96,8 @@ trainer.answer_token = answer_token
 
 # %%
 curriculum = Curriculum()
-# for _ in range(1):
-#     curriculum.increment_limit()
+for _ in range(min_task_len - 1):
+    curriculum.increment_limit()
 total_examples = 0
 while True:
     # for _ in range(30):
@@ -112,9 +128,12 @@ while True:
     # choose difficulty level to be just a bit longer than the longest solved
     lens_solved = np.where(scores)[0] + 1
     longest_solved = lens_solved[-1] if len(lens_solved) > 0 else 0
+    max_task_len = max(longest_solved + 1, min_task_len)
     curriculum.increment_limit()
-    curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 1]
+    curriculum.avg_scores = curriculum.avg_scores[:max_task_len]
 
-    if task_steps_limit >= 100 or total_examples > 1e6:
+    if task_steps_limit >= 50 or total_examples > 2e6:
         # that's enough
         break
+
+# %%
