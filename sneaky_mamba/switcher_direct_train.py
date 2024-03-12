@@ -72,7 +72,7 @@ while True:
 
     # for each steps length, check whether model answers correctly
     task_steps_limit = len(curriculum.avg_scores)
-    task_lenghts_eval = list(range(task_steps_limit))
+    task_lenghts_eval = list(range(1, task_steps_limit + 1))
     eval_dataset = DirectTasksDataset(tokenizer, task_lenghts_eval)
     scores = [evaluate_example(model, ex) for ex in eval_dataset]
     curriculum.update_scores(scores)
@@ -92,12 +92,12 @@ while True:
     # if np.mean(scores) > 0.9:
     #     # all answers were correct, so increase difficulty level
     # choose difficulty level to be just a bit longer than the longest solved
-    lens_solved = np.where(scores)[0]
+    lens_solved = np.where(scores)[0] + 1
     longest_solved = lens_solved[-1] if len(lens_solved) > 0 else 0
     curriculum.increment_limit()
-    curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 2]
+    curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 1]
 
-    if task_steps_limit >= 100 or total_examples > 800000:
+    if task_steps_limit >= 100 or total_examples > 1e6:
         # that's enough
         break
 
