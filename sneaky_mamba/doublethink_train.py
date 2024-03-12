@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import torch
 import wandb
-from generation import DoublethinkTasksDataset, test_doublethink_tokenization
+from utils.generation import DoublethinkTasksDataset, test_doublethink_tokenization
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
-from model import Switcher
-from train_helpers import Curriculum, ReasoningTrainer, get_accuracy_bar
+from utils.switcher_model import Switcher
+from utils.train_helpers import Curriculum, ReasoningTrainer, get_accuracy_bar
 from transformers import (
     AutoTokenizer,
     GPT2LMHeadModel,

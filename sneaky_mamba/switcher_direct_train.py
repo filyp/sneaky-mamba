@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import torch
 import wandb
-from generation import DirectTasksDataset, test_tokenization
+from utils.generation import DirectTasksDataset, test_tokenization
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
-from model import Switcher
-from train_helpers import Curriculum, DirectReasoningTrainer, get_accuracy_bar
+from utils.switcher_model import Switcher
+from utils.train_helpers import Curriculum, DirectReasoningTrainer, get_accuracy_bar
 from transformers import AutoTokenizer, TrainingArguments
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
