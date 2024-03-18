@@ -52,7 +52,7 @@ answer_token = tokenizer.encode("\n")[0]
 test_doublethink_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name=f"{architecture}_doublethink_l{num_layers}")
+wandb.init(project="doublethink", name=f"{architecture}_l{num_layers}")
 
 
 def evaluate_example(model, ex):
@@ -132,7 +132,7 @@ while True:
     curriculum.increment_limit()
     curriculum.avg_scores = curriculum.avg_scores[:max_task_len]
 
-    if task_steps_limit >= 50 or total_examples > 2e6:
+    if task_steps_limit >= 30 or total_examples > 1e6:
         # that's enough
         break
 

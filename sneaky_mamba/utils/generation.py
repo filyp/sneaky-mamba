@@ -208,3 +208,19 @@ def test_doublethink_tokenization(tokenizer):
         two_ops = tokenizer.encode(" " + op + " " + op)
         assert len(two_ops) == 2, two_ops
         assert two_ops[0] == two_ops[1], two_ops
+
+# %%
+# ensuring no memorization by splitting into train and test based on hash
+# on second thought, that's probably too harsh
+# bc it cannot learn some one-length operations
+# ops, hidden, overt = generate_task_abstract(5)
+# # hash them (deteministic)
+# # note: python hash is not deterministic
+# # use hashlib
+# import hashlib
+
+# h = hashlib.sha256()
+# h.update(str(ops).encode())
+# h.hexdigest()
+# # convert to 0 to 1 float
+# int(h.hexdigest(), 16) % 2

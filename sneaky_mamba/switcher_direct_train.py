@@ -21,7 +21,7 @@ tokenizer.pad_token = tokenizer.eos_token
 test_doublethink_tokenization(tokenizer)
 
 wandb.login()
-wandb.init(project="sneaky-mamba", name="switcher_direct_x5")
+wandb.init(project="sneaky-mamba", name="switcher_direct_dh3")
 
 # use only the first few layers out of 24
 model.layers = model.layers[:1]
@@ -97,7 +97,7 @@ while True:
     curriculum.increment_limit()
     curriculum.avg_scores = curriculum.avg_scores[: longest_solved + 1]
 
-    if task_steps_limit >= 100 or total_examples > 1e6:
+    if task_steps_limit >= 30:# or total_examples > 1e6:
         # that's enough
         break
 
