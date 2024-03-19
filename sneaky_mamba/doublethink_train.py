@@ -132,7 +132,7 @@ while True:
     curriculum.increment_limit()
     curriculum.avg_scores = curriculum.avg_scores[:max_task_len]
 
-    if task_steps_limit >= 30 or total_examples > 1e6:
+    if task_steps_limit >= 30 or total_examples > 2e6:
         # that's enough
         break
 
