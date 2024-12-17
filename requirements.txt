@@ -2,3 +2,4 @@ causal-conv1d>=1.1.0
 mamba-ssm
 wandb
 accelerate
+ipykernel

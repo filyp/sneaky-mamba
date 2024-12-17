@@ -6,3 +6,4 @@ sneaky_mamba/wandb
 sneaky_mamba/sgugger
 sneaky_mamba/out
 sneaky_mamba/transformer_l4
+.venv

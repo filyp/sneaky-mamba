@@ -1,3 +1,11 @@
+# Installation
+
+Make sure you have CUDA installed.
+```
+pip install -r prerequirements.txt
+pip install -r requirements.txt
+```
+
 # TODO
 
 - [X] place higher loss on the last token (the final answer) to maybe speedup training
